@@ -41,6 +41,7 @@ struct PaperSize {
   double height_points;
 };
 
+// In points
 static const PaperSize papers[] = {
   { "letter", 612, 792 },
   { "a6", 297.5, 419.6 },
@@ -164,42 +165,72 @@ int main(int argc, char** argv) {
     MT=0, MB, ML, MR
   };
   
-  double width = 612;
-  double height = 792;
+  //double width = 612;
+  //double height = 792;
+  double width = parse_unit("12 cm");
+  double height = parse_unit("12 cm");
+
   SizeType stype = SizeFull;
-  double size = width;
+  //double size = width;
+  double size = parse_unit("2 cm");
+
   double tagfrac = 1;
-  double padding = 0;
-  double margins[4] = { 36, 36, 36, 36 }; // 0.5in margins all around
+  //double padding = 0; // Doesn't include one block border I guess?
+  double padding = parse_unit("5 cm"); // Doesn't include one block border I guess?
+  //double margins[4] = { 36, 36, 36, 36 }; // 0.5in margins all around
+  double margin = parse_unit("1 cm");
+  double margins[4] = { margin, margin, margin, margin }; // 0.5in margins all around
   double font_size = 0;
   double label_gray = 0;
-  double crop_x = 0;
-  double crop_y = 0;
-  double crop_l = 36;
-  double crop_w = 1;
+
+  // for crop marks for each marker
+  //double crop_x = 0;
+  //double crop_y = 0;
+  //double crop_l = 36;
+  double crop_w = 1; // re-used for outer crop marks
   double crop_gray = 0.8;
-  std::string outfile = "pdffile.pdf";
-  bool   do_crop = false;
+
+  std::string outfile = "conveyor_label.pdf";
 
   std::string label_fmt = "%d";
 
   int label_unit = -1;
 
-  bool draw_labels = false;
+  bool draw_labels = true; 
 
-  if (argc < 2) {
-    usage(std::cerr);
-    exit(1);
-  }
+  //if (argc < 2) {
+    //usage(std::cerr);
+    //exit(1);
+  //}
   
   std::vector<size_t> ids;
+  //// Tags with 4x4 white centers:
+  //ids.push_back(77);
+  //ids.push_back(96);
+  //ids.push_back(200);
+  //ids.push_back(236);
+  //ids.push_back(241);
+  //ids.push_back(256);
+  //ids.push_back(301);
+  //ids.push_back(309);
+  //ids.push_back(371);
+  //ids.push_back(399);
+  //ids.push_back(482);
+  //ids.push_back(559);
   
-  if (std::string(argv[1]) == "--help") {
-    usage(std::cout);
-    exit(0);
-  }
+  // Hand picked cool tags
+  ids.push_back(77);  // Good for the origin; looks easiest to center.
+  ids.push_back(200); // Next easiest to center
+  ids.push_back(256); // Because 256!
+  
+  //if (std::string(argv[1]) == "--help") {
+    //usage(std::cout);
+    //exit(0);
+  //}
 
-  TagFamily family(argv[1]);
+  //TagFamily family(argv[1]);
+  TagFamily family("Tag36h11");
+  if (0) {
 
   for (int i=2; i<argc; ++i) {
     std::string optarg = argv[i];
@@ -218,7 +249,7 @@ int main(int argc, char** argv) {
         exit(1);
       }
     } else if (optarg == "--papersize") {
-      width = parse_unit(argv[++i]);
+      width = parse_unit(argv[++i]); 
       height = parse_unit(argv[++i]);
     } else if (optarg == "--margin") {
       double l = parse_unit(argv[++i]);
@@ -241,12 +272,11 @@ int main(int argc, char** argv) {
       size = parse_unit(argv[++i]);
       stype = SizeInner;
       label_unit = last_unit;
-    } else if (optarg == "--cropmark") {
-      do_crop = true;
-      crop_x = parse_unit(argv[++i]);
-      crop_y = parse_unit(argv[++i]);
-      crop_l = parse_unit(argv[++i]);
-      crop_gray = parse_value<double>(argv[++i]);
+    //} else if (optarg == "--cropmark") {
+      //crop_x = parse_unit(argv[++i]);
+      //crop_y = parse_unit(argv[++i]);
+      //crop_l = parse_unit(argv[++i]);
+      //crop_gray = parse_value<double>(argv[++i]);
     } else if (optarg == "--padding") {
       padding = parse_unit(argv[++i]);
     } else if (optarg == "--tagfrac") {
@@ -274,6 +304,7 @@ int main(int argc, char** argv) {
       exit(1);
     }
   }
+  }
 
   if (label_unit < 0) { label_unit = lookup_unit("mm"); }
 
@@ -291,7 +322,7 @@ int main(int argc, char** argv) {
   double orig_width = width;
   double orig_height = height;
 
-  width -= margins[ML] + margins[MR];
+  width -= margins[ML] + margins[MR]; // Size without the margins
   height -= margins[MT] + margins[MB];
 
   int rd = family.getTagRenderDimension();
@@ -324,9 +355,9 @@ int main(int argc, char** argv) {
     font_size = px_size;
   }
 
-  if (draw_labels) {
-    row_size += font_size;
-  }
+  //if (draw_labels) {
+    //row_size += font_size;
+  //} // Screws up vertical spacing!
 
   if (row_size > height) {
     std::cerr << "tag size taller than page!\n";
@@ -404,9 +435,31 @@ int main(int argc, char** argv) {
   int tb = wb + bb;
 
 
-  double mw = margins[ML] + 0.5 * (width - size*tags_per_row - padding*(tags_per_row-1));
-  double mh = margins[MT] + 0.5 * (height - row_size*rows_per_page - padding*(rows_per_page-1));
-  
+  // Render crop marks for the 10 x 10 cm plate
+  cairo_set_line_width(cr, crop_w);
+
+  cairo_set_source_rgb(cr, 
+                       crop_gray,
+                       crop_gray,
+                       crop_gray);
+  cairo_new_path(cr);
+  double x0 = 0 + margin;
+  double y0 = 0 + margin;
+  double x1 = orig_width - margin;
+  double y1 = orig_height - margin;
+  static const double dash_length = parse_unit("2mm");
+  static const double dashed1[1] = {dash_length}; // pt
+  static const double dash_start = dash_length/2;
+  cairo_set_dash(cr, dashed1, 1 , dash_start );
+  cairo_move_to(cr, x0, y0);
+  cairo_line_to(cr, x0, y1);
+  cairo_line_to(cr, x1, y1);
+  cairo_line_to(cr, x1, y0);
+  cairo_line_to(cr, x0, y0);
+  cairo_stroke(cr);
+  cairo_set_dash(cr, dashed1, 0 , 0 ); // unset dash using num_dashes = 0
+
+  // For each tag in the list...
   for (size_t i=0; i<ids.size(); ++i) {
 
     if (newpage) { 
@@ -414,53 +467,12 @@ int main(int argc, char** argv) {
       newpage = false; 
     }
 
+    double mw = margins[ML] + 0.5 * (width - size*tags_per_row - padding*(tags_per_row-1));
+    double mh = margins[MT] + 0.5 * (height - row_size*rows_per_page - padding*(rows_per_page-1));
+
+
     double x = mw + wb * px_size + col * (size + padding);
     double y = mh + wb * px_size + row * (row_size + padding);
-
-    if (do_crop) {
-
-      cairo_set_line_width(cr, crop_w);
-
-      cairo_set_source_rgb(cr, 
-                           crop_gray,
-                           crop_gray,
-                           crop_gray);
-
-      cairo_new_path(cr);
-
-      double x0 = mw + col * (size + padding);
-      double y0 = mh + row * (row_size + padding);
-      double x1 = x0 + size;
-      double y1 = y0 + size;
-
-      cairo_move_to(cr, x0-crop_x, y0-crop_y);
-      cairo_line_to(cr, x0-crop_x-crop_l, y0-crop_y);
-
-      cairo_move_to(cr, x0-crop_x, y0-crop_y);
-      cairo_line_to(cr, x0-crop_x, y0-crop_y-crop_l);
-
-      cairo_move_to(cr, x1+crop_x, y0-crop_y);
-      cairo_line_to(cr, x1+crop_x+crop_l, y0-crop_y);
-
-      cairo_move_to(cr, x1+crop_x, y0-crop_y);
-      cairo_line_to(cr, x1+crop_x, y0-crop_y-crop_l);
-
-      cairo_move_to(cr, x0-crop_x, y1+crop_y);
-      cairo_line_to(cr, x0-crop_x-crop_l, y1+crop_y);
-
-      cairo_move_to(cr, x0-crop_x, y1+crop_y);
-      cairo_line_to(cr, x0-crop_x, y1+crop_y+crop_l);
-
-      cairo_move_to(cr, x1+crop_x, y1+crop_y);
-      cairo_line_to(cr, x1+crop_x+crop_l, y1+crop_y);
-
-      cairo_move_to(cr, x1+crop_x, y1+crop_y);
-      cairo_line_to(cr, x1+crop_x, y1+crop_y+crop_l);
-      
-      cairo_stroke(cr);
-
-    }
-
 
     // draw thing at x, y
     cairo_set_source_rgb(cr, 0, 0, 0);
@@ -469,34 +481,22 @@ int main(int argc, char** argv) {
     cairo_fill(cr);
 
     if (draw_labels) {
-
       cairo_set_source_rgb(cr, 
                            label_gray, 
                            label_gray, 
                            label_gray);
-
-      //char buf[1024];
-      //snprintf(buf, 1024, "%u", (unsigned int)ids[i]);
       int id = ids[i];
       std::string lstr = label_fmt;
-
-      // replace %[0-9]+d with buf
-      // replace %f with stuff
       size_t pos;
       size_t start = 0;
       while ( (pos = lstr.find('%', start)) != std::string::npos ) {
-
         size_t pos2 = pos+1;
         while (pos2 < lstr.length() && isdigit(lstr[pos2])) {
           ++pos2;
         }
-
         if (pos2 >= lstr.length()) { break; }
-
         size_t l = pos2-pos + 1;
-
         char buf[1024];
-        
         if (tolower(lstr[pos2]) == 'f') {
           lstr.replace(pos, l, argv[1]);
         } else if (tolower(lstr[pos2]) == 'i' ||
@@ -521,14 +521,8 @@ int main(int argc, char** argv) {
           snprintf(buf, 1024, lstr.substr(pos,l).c_str(), id);
           lstr.replace(pos, l, buf);
         }
-
         start = pos2;
-
       }
-      
-      
-
-      
 
       cairo_text_extents_t extents;
       cairo_text_extents (cr, lstr.c_str(), &extents);
@@ -546,11 +540,12 @@ int main(int argc, char** argv) {
 
     cv::Mat_<unsigned char> m = family.makeImage(ids[i]);
 
-    cairo_set_source_rgb(cr, 1, 1, 1);
+    cairo_set_source_rgb(cr, 1, 1, 1); // White
 
+    // Draw the boxes that make up the code
     for (size_t i=0; i<family.d; ++i) {
       for (size_t j=0; j<family.d; ++j) {
-        bool w = m(i+tb,j+tb);
+        bool w = m(i+tb,j+tb); // white?
         if (w) {
           cairo_set_line_width(cr, px_size / 256);
           cairo_new_path(cr);
@@ -563,6 +558,14 @@ int main(int argc, char** argv) {
       }
     }
 
+    // Draw a dot in the middle
+    cairo_set_source_rgb(cr, 0, 0, 0); // Black
+    cairo_new_path(cr);
+    const double cx = x+px_size*(family.d/2+1);
+    const double cy = y+px_size*(family.d/2+1);
+    const double radius = parse_unit("0.5 mm");
+    cairo_arc (cr, cx, cy, radius, 0., 2 * M_PI);
+    cairo_fill(cr);
 
     ++col;
     if (col >= tags_per_row) {
