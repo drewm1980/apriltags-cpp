@@ -36,4 +36,7 @@ if (CAIRO_FOUND)
   add_executable(maketags maketags.cpp)
   target_link_libraries(maketags ${CAIRO_LIBRARIES} ${AT_LIBS} ${CAIRO_LIBS})
 
+  add_executable(make_conveyor_label make_conveyor_label.cpp)
+  target_link_libraries(make_conveyor_label ${CAIRO_LIBRARIES} ${AT_LIBS} ${CAIRO_LIBS})
+
 endif() 
